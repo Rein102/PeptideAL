@@ -66,7 +66,7 @@ X = np.hstack([X_desc_optimized, pH_scaled, sidechain_scaled])
 y = (surface_tension < 50).astype(int)
 
 if MODEL == "random_forest":
-    clf = RandomForestClassifier(n_estimators=500, random_state=42, n_jobs=-1, class_weight="balanced_subsample")
+    clf = RandomForestClassifier(n_estimators=500, random_state=42, n_jobs=-1)
 elif MODEL == "tabpfn":
     from tabpfn import TabPFNClassifier
     clf = TabPFNClassifier(random_state=42)
