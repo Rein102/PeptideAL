@@ -4,16 +4,17 @@ from rdkit import Chem
 from rdkit.Chem import Descriptors
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LassoCV
-from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_predict, cross_val_score
+from sklearn.model_selection import GroupShuffleSplit, StratifiedGroupKFold, cross_val_predict, cross_val_score
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, roc_auc_score, classification_report, confusion_matrix
 
 MODEL = "tabpfn"  # "random_forest" or "tabpfn"
 CONCENTRATION = 0.5
 
-df = pd.read_csv("Datasets/c16_surf_clean.csv", sep = ';')
+df = pd.read_csv("../Datasets/c16_surf_clean.csv", sep=";")
 df = df[df["concentration"] == CONCENTRATION].reset_index(drop=True)
 surface_tension = df["surface_tension"].values
+groups = df["sequence"].values
 
 PKA = {
     "D": (3.65, "acidic"), "E": (4.25, "acidic"), "H": (6.00, "basic"),
@@ -54,7 +55,9 @@ bad_cols = np.isnan(X_full_desc).any(axis=0) | (np.nanstd(X_full_desc, axis=0) <
 X_full_desc_clean = X_full_desc[:, ~bad_cols]
 kept_descriptor_names = [n for n, drop in zip(all_descriptor_names, bad_cols) if not drop]
 
-train_idx, holdout_idx = train_test_split(np.arange(len(df)), test_size=0.2, random_state=42)
+gss = GroupShuffleSplit(n_splits=1, test_size=0.2, random_state=42)
+train_idx, holdout_idx = next(gss.split(np.arange(len(df)), groups=groups))
+
 desc_scaler = StandardScaler().fit(X_full_desc_clean[train_idx])
 X_full_desc_scaled = desc_scaler.transform(X_full_desc_clean)
 
@@ -73,13 +76,13 @@ elif MODEL == "tabpfn":
 else:
     raise ValueError(f"unknown MODEL: {MODEL}")
 
-skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+sgkf = StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=42)
 
-cv_accuracy = cross_val_score(clf, X, y, cv=skf, scoring="accuracy")
-cv_auc = cross_val_score(clf, X, y, cv=skf, scoring="roc_auc")
+cv_accuracy = cross_val_score(clf, X, y, groups=groups, cv=sgkf, scoring="accuracy")
+cv_auc = cross_val_score(clf, X, y, groups=groups, cv=sgkf, scoring="roc_auc")
 
-oof_pred = cross_val_predict(clf, X, y, cv=skf, method="predict")
-oof_proba = cross_val_predict(clf, X, y, cv=skf, method="predict_proba")[:, 1]
+oof_pred = cross_val_predict(clf, X, y, groups=groups, cv=sgkf, method="predict")
+oof_proba = cross_val_predict(clf, X, y, groups=groups, cv=sgkf, method="predict_proba")[:, 1]
 
 print(f"model: {MODEL}")
 print(f"CV accuracy: {cv_accuracy.mean():.3f} +/- {cv_accuracy.std():.3f}")
